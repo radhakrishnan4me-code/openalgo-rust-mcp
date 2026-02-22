@@ -282,6 +282,12 @@ Use the same JSON format as Claude Desktop above.
 Use the same JSON format as Claude Desktop above.
 
 ---
+### n8n Usage
+**n8n MCP Client config (both on same Docker network):**
+
+Connection Type: Streamable HTTP
+URL: http://openalgo-mcp-rust:8000/mcp
+Authentication: Header Auth → Authorization: Bearer your-secret-token-here
 
 ## Usage Examples
 
