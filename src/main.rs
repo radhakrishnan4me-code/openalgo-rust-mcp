@@ -2,13 +2,26 @@ mod client;
 
 use client::OpenAlgoClient;
 use rmcp::{
-    ServerHandler, ServiceExt,
+    ServerHandler,
     model::*,
     service::{RequestContext, RoleServer},
-    transport::stdio,
+    transport::streamable_http_server::{
+        session::local::LocalSessionManager,
+        StreamableHttpServerConfig, StreamableHttpService,
+    },
 };
 use serde_json::{json, Value};
-use std::env;
+use std::{env, sync::Arc};
+
+use axum::{
+    Router,
+    body::Body,
+    extract::State,
+    http::{Request, StatusCode, header},
+    middleware::{self, Next},
+    response::Response,
+    routing::any,
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  MCP SERVER
@@ -411,6 +424,37 @@ impl ServerHandler for OpenAlgoMcp {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+//  BEARER AUTH MIDDLEWARE
+// ═══════════════════════════════════════════════════════════════════════════
+
+async fn bearer_auth(
+    State(expected_token): State<Arc<String>>,
+    req: Request<Body>,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    let auth_header = req
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok());
+
+    match auth_header {
+        Some(val) if val.starts_with("Bearer ") => {
+            let token = &val[7..];
+            if token == expected_token.as_str() {
+                Ok(next.run(req).await)
+            } else {
+                tracing::warn!("Invalid bearer token");
+                Err(StatusCode::UNAUTHORIZED)
+            }
+        }
+        _ => {
+            tracing::warn!("Missing or malformed Authorization header");
+            Err(StatusCode::UNAUTHORIZED)
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 //  MAIN
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -435,17 +479,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if args.len() >= 3 { args[2].clone() } else { "http://127.0.0.1:5000".into() }
     });
 
+    let bearer_token = env::var("MCP_BEARER_TOKEN").unwrap_or_else(|_| "changeme".into());
+    let bearer_token = Arc::new(bearer_token);
+
     eprintln!("OpenAlgo MCP Server starting...");
     eprintln!("  Host: {host}");
     eprintln!("  API Key: {}...", &api_key[..api_key.len().min(8)]);
+    eprintln!("  Transport: HTTP Streamable (port 8000)");
 
     let client = OpenAlgoClient::new(api_key, host);
-    let server = OpenAlgoMcp::new(client);
 
-    let service = server.serve(stdio()).await
-        .inspect_err(|e| eprintln!("Error starting MCP server: {e}"))?;
+    // Create the StreamableHttpService with a factory closure
+    let config = StreamableHttpServerConfig::default();
+    let session_manager = Arc::new(LocalSessionManager::default());
+    let mcp_service = StreamableHttpService::new(
+        move || Ok(OpenAlgoMcp::new(client.clone())),
+        session_manager,
+        config,
+    );
 
-    eprintln!("OpenAlgo MCP Server running on stdio transport");
-    service.waiting().await?;
+    // Build axum router with bearer auth middleware
+    let app = Router::new()
+        .route("/mcp", any(move |req: Request<Body>| {
+            let svc = mcp_service.clone();
+            async move { svc.handle(req).await }
+        }))
+        .route_layer(middleware::from_fn_with_state(bearer_token.clone(), bearer_auth));
+
+    let bind_addr = "0.0.0.0:8000";
+    let listener = tokio::net::TcpListener::bind(bind_addr).await?;
+    eprintln!("OpenAlgo MCP Server listening on {bind_addr}");
+
+    axum::serve(listener, app).await?;
     Ok(())
 }

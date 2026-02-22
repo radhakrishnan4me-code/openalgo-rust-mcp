@@ -9,8 +9,8 @@ services:
       - .env
     environment:
       - OPENALGO_URL=${OPENALGO_URL:-http://host.docker.internal:5000}
+      - MCP_BEARER_TOKEN=${MCP_BEARER_TOKEN:-changeme}
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    # MCP uses stdio — stdin/stdout must remain attached
-    stdin_open: true
-    tty: false
+    ports:
+      - "8000:8000"
