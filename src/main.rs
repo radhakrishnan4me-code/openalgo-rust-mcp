@@ -110,7 +110,8 @@ impl OpenAlgoMcp {
             name: name.into(),
             description: Some(description.into()),
             input_schema: serde_json::from_value(schema).unwrap_or_default(),
-            ..Default::default()
+            annotations: None,
+            output_schema: None,
         }
     }
 
@@ -384,6 +385,7 @@ impl ServerHandler for OpenAlgoMcp {
             Ok(ListToolsResult {
                 tools: Self::tool_definitions(),
                 next_cursor: None,
+                meta: None,
             })
         }
     }
@@ -394,7 +396,7 @@ impl ServerHandler for OpenAlgoMcp {
         _context: RequestContext<RoleServer>,
     ) -> impl std::future::Future<Output = Result<CallToolResult, ErrorData>> + Send + '_ {
         async move {
-            let name = request.name.as_str();
+            let name: &str = &request.name;
             let args = match request.arguments {
                 Some(map) => serde_json::to_value(map).unwrap_or(json!({})),
                 None => json!({}),
