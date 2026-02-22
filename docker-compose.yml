@@ -1,0 +1,16 @@
+services:
+  openalgo-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: openalgo-mcp-rust
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - OPENALGO_URL=${OPENALGO_URL:-http://host.docker.internal:5000}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # MCP uses stdio — stdin/stdout must remain attached
+    stdin_open: true
+    tty: false

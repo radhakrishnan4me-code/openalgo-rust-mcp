@@ -1,0 +1,20 @@
+[package]
+name = "openalgo-mcp"
+version = "1.0.0"
+edition = "2021"
+description = "OpenAlgo MCP Server - Model Context Protocol server for AI-assisted trading via OpenAlgo"
+license = "MIT"
+
+[dependencies]
+rmcp = { version = "0.16", features = ["server", "transport-io"] }
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.12", features = ["json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
