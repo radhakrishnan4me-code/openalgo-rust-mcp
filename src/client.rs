@@ -23,12 +23,18 @@ impl OpenAlgoClient {
     /// POST to an OpenAlgo API endpoint and return the JSON response.
     pub async fn post(&self, endpoint: &str, body: Value) -> Result<Value, String> {
         let url = format!("{}{}", self.base_url, endpoint);
+
+        // Inject apikey into the request body
+        let mut payload = body;
+        if let Some(obj) = payload.as_object_mut() {
+            obj.insert("apikey".to_string(), Value::String(self.api_key.clone()));
+        }
+
         let resp = self
             .client
             .post(&url)
             .header("Content-Type", "application/json")
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .json(&body)
+            .json(&payload)
             .send()
             .await
             .map_err(|e| format!("HTTP request failed: {}", e))?;
