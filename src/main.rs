@@ -105,7 +105,7 @@ impl OpenAlgoMcp {
         ]
     }
 
-    fn make_tool(name: &str, description: &str, schema: Value) -> Tool {
+    fn make_tool(name: &'static str, description: &'static str, schema: Value) -> Tool {
         Tool {
             name: name.into(),
             title: None,
