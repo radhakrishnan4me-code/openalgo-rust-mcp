@@ -108,10 +108,14 @@ impl OpenAlgoMcp {
     fn make_tool(name: &str, description: &str, schema: Value) -> Tool {
         Tool {
             name: name.into(),
+            title: None,
             description: Some(description.into()),
             input_schema: serde_json::from_value(schema).unwrap_or_default(),
-            annotations: None,
             output_schema: None,
+            annotations: None,
+            execution: None,
+            icons: None,
+            meta: None,
         }
     }
 
