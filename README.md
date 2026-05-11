@@ -4,7 +4,7 @@ A high-performance **Model Context Protocol (MCP)** server for [OpenAlgo](https:
 
 ## Features
 
-- **38 MCP Tools** — Full parity with the Python `mcpserver.py`
+- **41 MCP Tools** — Full parity with the Python `mcpserver.py`
 - **Blazing fast** — Single static binary (~15 MB), sub-millisecond tool dispatch
 - **Docker ready** — Multi-stage Dockerfile, docker-compose included
 - **HTTP Streamable transport** — Industry-standard MCP transport over HTTP with SSE
@@ -25,6 +25,9 @@ A high-performance **Model Context Protocol (MCP)** server for [OpenAlgo](https:
 | `modify_order` | Modify existing orders |
 | `cancel_order` | Cancel a specific order |
 | `cancel_all_orders` | Cancel all orders for a strategy |
+| `bracket_order` | Place native bracket order with target and stop-loss |
+| `bracket_order_status` | Check status of a bracket order and its legs |
+| `cancel_bracket_order` | Cancel a bracket order and all its legs |
 
 ### Position Management
 | Tool | Description |
@@ -279,6 +282,8 @@ Once connected, ask your AI assistant:
 - *"Show me the option chain for NIFTY with 30DEC25 expiry"*
 - *"What are the trading holidays in 2025?"*
 - *"What are the market timings for today?"*
+- *"Place a bracket order for SBIN with 5 points target and 3 points SL"*
+- *"Cancel my bracket order for CRUDEOIL"*
 
 ---
 

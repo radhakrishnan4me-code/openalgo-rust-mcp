@@ -81,6 +81,10 @@ impl OpenAlgoMcp {
             Self::make_tool("modify_order", "Modify an existing order. Required: order_id, strategy, symbol, action, exchange, price_type, product, quantity.", json!({"type":"object","required":["order_id","strategy","symbol","action","exchange","price_type","product","quantity"],"properties":{"order_id":{"type":"string"},"strategy":{"type":"string"},"symbol":{"type":"string"},"action":{"type":"string"},"exchange":{"type":"string"},"price_type":{"type":"string"},"product":{"type":"string"},"quantity":{"type":"integer"},"price":{"type":"number"}}})),
             Self::make_tool("cancel_order", "Cancel a specific order. Required: order_id, strategy.", json!({"type":"object","required":["order_id","strategy"],"properties":{"order_id":{"type":"string"},"strategy":{"type":"string"}}})),
             Self::make_tool("cancel_all_orders", "Cancel all open orders for a strategy. Required: strategy.", json!({"type":"object","required":["strategy"],"properties":{"strategy":{"type":"string"}}})),
+            // Bracket Orders
+            Self::make_tool("bracket_order", "Place a native bracket order with automatic target and stop-loss. Required: symbol, quantity, action, exchange, product, target_type, target_value, sl_type, sl_value. Optional: price_type (MARKET), strategy (Rust), price.", json!({"type":"object","required":["symbol","quantity","action","exchange","product","target_type","target_value","sl_type","sl_value"],"properties":{"symbol":{"type":"string"},"quantity":{"type":"integer"},"action":{"type":"string","enum":["BUY","SELL"]},"exchange":{"type":"string"},"product":{"type":"string"},"target_type":{"type":"string","enum":["points","percentage","absolute"]},"target_value":{"type":"number"},"sl_type":{"type":"string","enum":["points","percentage","absolute"]},"sl_value":{"type":"number"},"price_type":{"type":"string","default":"MARKET"},"strategy":{"type":"string","default":"Rust"},"price":{"type":"number"}}})),
+            Self::make_tool("bracket_order_status", "Get the current status and leg details of a bracket order. Required: bo_id.", json!({"type":"object","required":["bo_id"],"properties":{"bo_id":{"type":"string"}}})),
+            Self::make_tool("cancel_bracket_order", "Cancel an active bracket order and all its pending legs. Required: bo_id.", json!({"type":"object","required":["bo_id"],"properties":{"bo_id":{"type":"string"}}})),
             // Position Management
             Self::make_tool("close_all_positions", "Close all open positions for a strategy. Required: strategy.", json!({"type":"object","required":["strategy"],"properties":{"strategy":{"type":"string"}}})),
             Self::make_tool("get_open_position", "Get current open position. Required: strategy, symbol, exchange, product.", json!({"type":"object","required":["strategy","symbol","exchange","product"],"properties":{"strategy":{"type":"string"},"symbol":{"type":"string"},"exchange":{"type":"string"},"product":{"type":"string"}}})),
@@ -239,6 +243,35 @@ impl OpenAlgoMcp {
             "close_all_positions" => {
                 self.call_api("/closeposition", json!({"strategy": Self::get_str(&a, "strategy")})).await
             }
+            "bracket_order" => {
+                let mut body = json!({
+                    "symbol": Self::get_str(&a, "symbol").to_uppercase(),
+                    "action": Self::get_str(&a, "action").to_uppercase(),
+                    "exchange": Self::get_str(&a, "exchange").to_uppercase(),
+                    "product": Self::get_str(&a, "product").to_uppercase(),
+                    "quantity": Self::get_i64(&a, "quantity"),
+                    "price_type": Self::get_str_or(&a, "price_type", "MARKET").to_uppercase(),
+                    "strategy": Self::get_str_or(&a, "strategy", "Rust"),
+                    "target_type": Self::get_str(&a, "target_type"),
+                    "target_value": Self::get_f64_opt(&a, "target_value").unwrap_or(0.0),
+                    "sl_type": Self::get_str(&a, "sl_type"),
+                    "sl_value": Self::get_f64_opt(&a, "sl_value").unwrap_or(0.0),
+                });
+                if let Some(v) = Self::get_f64_opt(&a, "price") { body["price"] = json!(v); }
+                self.call_api("/bracketorder", body).await
+            }
+            "bracket_order_status" => {
+                let bo_id = Self::get_str(&a, "bo_id");
+                self.call_api(&format!("/bracketorder/status?bo_id={}", bo_id), json!({})).await
+            }
+            "cancel_bracket_order" => {
+                let bo_id = Self::get_str(&a, "bo_id");
+                // DELETE /bracketorder?bo_id=...
+                // We use call_api_with_method for DELETE or just append to URL
+                let url = format!("/bracketorder?bo_id={}", bo_id);
+                // The current call_api only does POST. I should check if I need a delete helper.
+                self.call_api_with_method("DELETE", &url, json!({})).await
+            }
             "get_open_position" => {
                 self.call_api("/openposition", json!({
                     "strategy": Self::get_str(&a, "strategy"),
@@ -369,7 +402,11 @@ impl OpenAlgoMcp {
     }
 
     async fn call_api(&self, endpoint: &str, body: Value) -> Result<CallToolResult, ErrorData> {
-        match self.client.post(endpoint, body).await {
+        self.call_api_with_method("POST", endpoint, body).await
+    }
+
+    async fn call_api_with_method(&self, method: &str, endpoint: &str, body: Value) -> Result<CallToolResult, ErrorData> {
+        match self.client.call_method(method, endpoint, body).await {
             Ok(v) => Self::ok(v),
             Err(e) => Self::err(format!("API error: {e}")),
         }
